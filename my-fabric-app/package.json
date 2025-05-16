@@ -12,6 +12,7 @@
     "express": "^4.19.2",
     "fabric-ca-client": "^2.2.20",
     "fabric-network": "^2.2.20",
+    "jose": "^6.0.10",
     "qrcode": "^1.5.3",
     "uuid": "^9.0.1"
   },

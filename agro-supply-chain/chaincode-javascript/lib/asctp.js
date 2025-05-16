@@ -28,261 +28,98 @@ class ASCTP extends Contract {
         return response.toString();
     }    
 
-    async queryByID(ctx, ID){
-       let queryString ={}
-       queryString.selector={"_id":ID}
-       let iterator = await ctx.stub.getQueryResult(JSON.stringify(queryString))
-       let result = await this.getIteratorData(iterator)
-       return result
-    }    
-
-    async queryValidFB(ctx, g_id, f_id ){
-        let queryString ={}
-        queryString.selector={
-            "_id": {
-                "$regex": "FB_"
-             },
-            "produce_id":g_id,
-            "facility_id":f_id,
-            "status":"RECEIVED"
+   
+    async createDID(ctx, did, publicKey, serviceEndpoint) {
+        const exists = await this.didExists(ctx, did);
+        if (exists) {
+            throw new Error(`DID ${did} already exists`);
         }
-        let iterator = await ctx.stub.getQueryResult(JSON.stringify(queryString))
-        let result = await this.getIteratorData(iterator)
-        return result
-     } 
 
-
-    async queryValidZFB(ctx){
-        let queryString ={}
-        queryString.selector={
-            "_id": {
-                "$regex": "ZF_"
-             },
-            "status":"UNUSED"
-        }
-        let iterator = await ctx.stub.getQueryResult(JSON.stringify(queryString))
-        let result = await this.getIteratorData(iterator)
-        return result
-     }
-    
-    async queryAvailableZFB(ctx, facility_id){
-        let queryString ={}
-        queryString.selector={
-            "_id": {
-                "$regex": "ZF_"
-             },
-            "status":"BATCHED",
-            "facility_id":facility_id
-        }
-        let iterator = await ctx.stub.getQueryResult(JSON.stringify(queryString))
-        let result = await this.getIteratorData(iterator)
-        return result
-     }    
-
-    async queryAvailableDrivers(ctx){
-        let queryString ={}
-        queryString.selector={
-            "_id": {
-                "$regex": "DR_"
-             },
-            "status":"AVAILABLE"
-        }
-        let iterator = await ctx.stub.getQueryResult(JSON.stringify(queryString))
-        let result = await this.getIteratorData(iterator)
-        return result
-     }    
-
-     async pendingPur(ctx){
-        let queryString ={}
-        queryString.selector={
-            "_id": {
-                "$regex": "PU_"
-             },
-            "status":"CREATED"
-        }
-        let iterator = await ctx.stub.getQueryResult(JSON.stringify(queryString))
-        let result = await this.getIteratorData(iterator)
-        return result
-     }    
-
-
-     async uniquePur(ctx, produce_id,supplier_id){
-        let queryString ={}
-        queryString.selector= {
-            "_id": {
-                "$regex": "PU_"
+        const didDocument = {
+            '@context': 'https://www.w3.org/ns/did/v1',
+            id: did,
+            publicKey: publicKey,
+            service: {
+                id: `${did}#service`,
+                type: 'VerifiableCredentialService',
+                serviceEndpoint: serviceEndpoint,
             },
-            "created_at": {
-                "$regex": `${formattedDate}.*`
+            owner: ctx.clientIdentity.getID(),
+        };
+
+        await ctx.stub.putState(did, Buffer.from(JSON.stringify(didDocument)));
+        return JSON.stringify(didDocument);
+    }
+
+    async readDID(ctx, ID) {
+        let queryString ={}
+        queryString.selector={"_id":ID}
+        let iterator = await ctx.stub.getQueryResult(JSON.stringify(queryString))
+        let result = await this.getIteratorData(iterator)
+        return result
+    }
+
+    async didExists(ctx, did) {
+        const didDocument = await ctx.stub.getState(did);
+        return didDocument && didDocument.length > 0;
+    }
+    async createVC(ctx, vcID, issuerDID, holderDID, credentialData, vcHash, issuanceDate) {
+        // Verify that the issuer's DID exists
+        const issuerDocument = await ctx.stub.getState(issuerDID);
+        if (!issuerDocument || issuerDocument.length === 0) {
+            throw new Error(`Issuer DID ${issuerDID} does not exist`);
+        }
+
+        // Verify that the holder's DID exists
+        const holderDocument = await ctx.stub.getState(holderDID);
+        if (!holderDocument || holderDocument.length === 0) {
+            throw new Error(`Holder DID ${holderDID} does not exist`);
+        }
+
+        // Create a Verifiable Credential
+        const vc = {
+            '@context': 'https://www.w3.org/2018/credentials/v1',
+            id: vcID,
+            type: ['VerifiableCredential'],
+            issuer: issuerDID,
+            credentialSubject: {
+                id: holderDID,
+                ...credentialData,
             },
-            "supplier_id": supplierId,
-            "produce_id": produceId
+            
+        };
+
+        // Hash the VC for anchoring
+
+        const vcRecord = {
+            vcID: vcID,
+            issuerDID: issuerDID,
+            holderDID: holderDID,
+            vcHash: vcHash,
+            issuanceDate: vc.issuanceDate,
+        };
+
+        // Store the VC hash on the blockchain
+        await ctx.stub.putState(vcID, Buffer.from(JSON.stringify(vcRecord)));
+
+        return JSON.stringify(vcRecord);
+    }
+
+    async verifyVC(ctx, vcID, vcHash) {
+        const storedVC = await ctx.stub.getState(vcID);
+        if (!storedVC || storedVC.length === 0) {
+            throw new Error(`VC ${vcID} does not exist`);
         }
 
-        let iterator = await ctx.stub.getQueryResult(JSON.stringify(queryString))
-        let result = await this.getIteratorData(iterator)
-        return result
-     }  
+        const vcRecord = JSON.parse(storedVC.toString());
 
-
-     async pendingPurToday(ctx){
-        const today = new Date();
-        const yyyy = today.getUTCFullYear();
-        const mm = String(today.getUTCMonth() + 1).padStart(2, '0'); // Months are zero-based
-        const dd = String(today.getUTCDate()).padStart(2, '0');
-        const todayStart = `${yyyy}-${mm}-${dd}T00:00:00Z`;
-        const tomorrowStart = `${yyyy}-${mm}-${String(today.getUTCDate() + 1).padStart(2, '0')}T00:00:00Z`;
-        let queryString ={}
-        queryString.selector={
-            "_id": {
-                "$regex": "PU_"
-             },
-            "status":"CREATED",
-            "created_at": {
-                    "$gte": todayStart,
-                    "$lt": tomorrowStart}
+        // Verify the VC hash matches
+        if (vcRecord.vcHash !== vcHash) {
+            throw new Error('VC has been tampered with');
         }
-        let iterator = await ctx.stub.getQueryResult(JSON.stringify(queryString))
-        let result = await this.getIteratorData(iterator)
-        return result
-     }    
 
-     async queryPendingTranport(ctx){
-        let queryString ={}
-        queryString.selector={
-            "_id": {
-                "$regex": "TR_"
-             },
-            "status":"INITIATED"
-        }
-        let iterator = await ctx.stub.getQueryResult(JSON.stringify(queryString))
-        let result = await this.getIteratorData(iterator)
-        return result
-     }    
-
-
-    async queryAllPurchases(ctx){
-        let queryString ={}
-        queryString.selector={      "_id": {
-            "$regex": "PU_"
-         }}
-        let iterator = await ctx.stub.getQueryResult(JSON.stringify(queryString))
-        let result = await this.getIteratorData(iterator)
-  
-        return result
-     }    
-
-     async queryAllSuppliers(ctx){
-        let queryString ={}
-        queryString.selector={      "_id": {
-            "$regex": "SP_"
-         }}
-        let iterator = await ctx.stub.getQueryResult(JSON.stringify(queryString))
-        let result = await this.getIteratorData(iterator)
-  
-        return result
-     }    
-
-     async queryAllQR(ctx){
-        let queryString ={}
-        queryString.selector={      "_id": {
-            "$regex": "QR_"
-         }}
-        let iterator = await ctx.stub.getQueryResult(JSON.stringify(queryString))
-        let result = await this.getIteratorData(iterator)
-  
-        return result
-     }    
-
-     async queryAllEmployees(ctx){
-        let queryString ={}
-        queryString.selector={      "_id": {
-            "$regex": "EM_"
-         }}
-        let iterator = await ctx.stub.getQueryResult(JSON.stringify(queryString))
-        let result = await this.getIteratorData(iterator)
-  
-        return result
-     }    
-
-
-     async queryAllZFB(ctx){
-        let queryString ={}
-        queryString.selector={      "_id": {
-            "$regex": "ZF_"
-         }}
-        let iterator = await ctx.stub.getQueryResult(JSON.stringify(queryString))
-        let result = await this.getIteratorData(iterator)
-  
-        return result
-     }    
-
-     async queryAllTransports(ctx){
-        let queryString ={}
-        queryString.selector={      "_id": {
-            "$regex": "TR_"
-         }}
-        let iterator = await ctx.stub.getQueryResult(JSON.stringify(queryString))
-        let result = await this.getIteratorData(iterator)
-  
-        return result
-     }  
-
-     async queryAllDrivers(ctx){
-        let queryString ={}
-        queryString.selector={      "_id": {
-            "$regex": "DR_"
-         }}
-        let iterator = await ctx.stub.getQueryResult(JSON.stringify(queryString))
-        let result = await this.getIteratorData(iterator)
-  
-        return result
-     }    
- 
-    async queryAllFarmerBags(ctx){
-        let queryString ={}
-        queryString.selector={      "_id": {
-            "$regex": "FB_"
-            }}
-        let iterator = await ctx.stub.getQueryResult(JSON.stringify(queryString))
-        let result = await this.getIteratorData(iterator)
-
-        return result
-        }  
-
-    async queryAllBatches(ctx){
-        let queryString ={}
-        queryString.selector={      "_id": {
-            "$regex": "BA_"
-            }}
-        let iterator = await ctx.stub.getQueryResult(JSON.stringify(queryString))
-        let result = await this.getIteratorData(iterator)
-
-        return result
-        }   
-
-    async queryAllProduce(ctx){
-        let queryString ={}
-        queryString.selector={      "_id": {
-            "$regex": "PD_"
-            }}
-        let iterator = await ctx.stub.getQueryResult(JSON.stringify(queryString))
-        let result = await this.getIteratorData(iterator)
-
-        return result
-        }   
-
-    async queryAllFacility(ctx){
-        let queryString ={}
-        queryString.selector={      "_id": {
-            "$regex": "FA_"
-            }}
-        let iterator = await ctx.stub.getQueryResult(JSON.stringify(queryString))
-        let result = await this.getIteratorData(iterator)
-
-        return result
-        }   
-
+        return { valid: true, vcRecord };
+    }
     
     async getIteratorData(iterator){
         let outputArray = []
