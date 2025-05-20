@@ -1,3 +1,8 @@
+/**
+ * Verifies the integrity and authenticity of a Verifiable Credential.
+ * Checks VC hash against stored on-chain hash, and signature if available.
+ */
+
 const path = require('path');
 const { Gateway, Wallets } = require('fabric-network');
 const fs = require('fs');

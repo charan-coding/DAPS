@@ -1,3 +1,8 @@
+/**
+ * Encrypts a random challenge string using the given public key.
+ * Used for DID ownership verification.
+ */
+
 const express = require('express');
 const crypto = require('crypto');
 const fs = require('fs');

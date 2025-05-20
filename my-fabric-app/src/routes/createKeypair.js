@@ -1,3 +1,8 @@
+/**
+ * Generates an RSA public-private keypair and saves them as PEM files.
+ * Accepts `name` in the request body to customize file names.
+ */
+
 const express = require('express');
 const crypto = require('crypto');
 const fs = require('fs');
@@ -14,7 +19,7 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ error: 'Invalid or missing name parameter' });
     }
 
-
+    // Generate a 2048-bit RSA keypair
     const { publicKey, privateKey } = crypto.generateKeyPairSync('rsa', {
       modulusLength: 2048, 
       publicKeyEncoding: {
@@ -26,6 +31,9 @@ router.post('/', async (req, res) => {
         format: 'pem',      
       },
     });
+
+    // Save keys to PEM files with a name suffix
+
     const publicKeyFilename = `publicKey_${name}.pem`;
     const privateKeyFilename = `privateKey_${name}.pem`;
     console.log(publicKeyFilename)

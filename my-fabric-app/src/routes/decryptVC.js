@@ -1,3 +1,7 @@
+/**
+ * Decrypts an encrypted Verifiable Credential using a private RSA key.
+ */
+
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
@@ -19,6 +23,7 @@ router.post('/', async (req, res) => {
   }
 
   const privateKeyPath = path.join(__dirname, `../../privateKey_${name}.pem`);
+  // Fetch private key and perform RSA decryption using provided private key
 
   try {
     // Load the private key from file

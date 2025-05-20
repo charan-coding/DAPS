@@ -1,3 +1,8 @@
+/**
+ * API endpoint to create and store a new DID document on the ledger for Org1.
+ * Expects `did`, `publicKey`, in the request body.
+ */
+
 const path = require('path');
 const { Gateway, Wallets } = require('fabric-network');
 const fs = require('fs');
@@ -39,6 +44,7 @@ router.post('/', async (req, res) => {
         if (!did || !publicKey || !serviceEndpoint) {
             return res.status(400).json({ error: 'DID, publicKey, and serviceEndpoint are required' });
         }
+
 
         await contract.submitTransaction('createDID', did, publicKey, serviceEndpoint);
         console.log('DID creation transaction has been submitted');

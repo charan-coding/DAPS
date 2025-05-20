@@ -1,3 +1,8 @@
+/**
+ * Encrypts a Verifiable Credential using a given public RSA key.
+ */
+
+
 const express = require('express');
 const router = express.Router();
 

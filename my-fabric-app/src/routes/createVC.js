@@ -1,3 +1,7 @@
+/**
+ * Creates and stores a Verifiable Credential (VC) on the blockchain.
+ */
+
 const path = require('path');
 const { Gateway, Wallets } = require('fabric-network');
 const fs = require('fs');
@@ -43,6 +47,7 @@ router.post('/', async (req, res) => {
         const vcHash = crypto.createHash('sha256').update(JSON.stringify(credentialData)).digest('hex');
 
         // Submit the transaction to create the VC
+        // Date is inputed since getting date inside the chain causes consensus issues
         await contract.submitTransaction('createVC', vcID, issuerDID, holderDID, JSON.stringify(credentialData), vcHash, new Date().toISOString());
         console.log('VC creation transaction has been submitted');
 

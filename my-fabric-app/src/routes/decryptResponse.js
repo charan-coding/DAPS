@@ -1,3 +1,8 @@
+/**
+ * Decrypts an encrypted message using a private key.
+ * Requires `privateKey` and `encryptedMessage` in the body.
+ */
+
 const express = require('express');
 const crypto = require('crypto');
 const fs = require('fs');
@@ -21,6 +26,9 @@ router.post('/', async (req, res) => {
     return res.status(400).json({ error: 'Encrypted text is required' });
   }
   const privateKeyFilename = `../../privateKey_${name}.pem`;
+  
+  // Fetch Priv key and Decrypt the message using RSA private key
+
   try {
     console.log(path.join(__dirname, privateKeyFilename))
     const privateKey = fs.readFileSync(path.join(__dirname, privateKeyFilename), 'utf8');

@@ -1,3 +1,7 @@
+/**
+ * Fetches a DID document from the blockchain by DID identifier.
+ */
+
 const path = require('path');
 const { Gateway, Wallets } = require('fabric-network');
 const fs = require('fs');
